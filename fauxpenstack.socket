@@ -1,0 +1,7 @@
+[Socket]
+ListenStream=${SVC_PORT}
+Accept=no
+Service=fauxpenstack.service
+
+[Install]
+WantedBy=default.target

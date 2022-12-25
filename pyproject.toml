@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "fauxpenstack"
+version = "0.1.0"
+description = "The vegan alternative openstack"
+authors = ["Simon Poirier <simpoir@gmail.com>"]
+license = "MIT"
+packages = [
+    { include = "fauxpenstack", from = "src"},
+]
+
+[tool.poetry.scripts]
+fauxpenstack = "fauxpenstack.__main__:main"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+asyncio = "^3.4.3"
+aiohttp = "^3.8.3"
+click = "^8.1.3"
+aiofiles = "^22.1.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
