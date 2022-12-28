@@ -1,6 +1,8 @@
 """metadata service, because config drives are boring."""
 import asyncio
-from typing import Callable, Optional
+import base64
+import logging
+from typing import Callable
 
 import aiofiles
 from aiohttp import web
@@ -21,12 +23,15 @@ async def vendor_data(request: web.Request) -> web.Response:
 
 @routes.get("/openstack/{version}/user_data")
 async def user_data(request: web.Request) -> web.Response:
-    return web.Response(body=request.config_dict["user_data"])
+    data = request.config_dict["user_data"]
+    return web.Response(body=data)
 
 
 @routes.get("/openstack/{version}/meta_data.json")
 async def meta_data(request: web.Request) -> web.Response:
-    return web.json_response(request.config_dict["meta_data"])
+    data = request.config_dict["meta_data"]
+    logging.debug("metadata served: %r", data)
+    return web.json_response(data)
 
 
 @routes.get("/openstack/{version}/network_data.json")
@@ -72,7 +77,7 @@ async def mk_metadata(instance) -> (Callable, int):
 
     app = web.Application()
     app.add_routes(routes)
-    app["user_data"] = instance.user_data or ""
+    app["user_data"] = base64.b64decode(instance.user_data or "")
     app["meta_data"] = meta_data
     app["hw_addr"] = instance._br_hwadd
 

@@ -4,15 +4,20 @@ import hashlib
 import hmac
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from aiohttp import web
+from . import util
 
 routes = web.RouteTableDef()
 app = web.Application()
 app["ep_name"] = __name__
 app["ep_type"] = "identity"
+util.make_endpoint(routes, "3.0", "v3")
+
+
+REGION = "default"
 
 
 class InvalidTokenError(Exception):
@@ -23,7 +28,7 @@ def catalog(request: web.Request):
     base = request.config_dict.get("base_url")
     if not base:
         base = f"{request.scheme}://{request.host}"
-    defaults = {"region_id": "default", "interface": "public", "region": "default"}
+    defaults = {"region_id": "default", "interface": "public", "region": REGION}
     root_app = request.config_dict["root_app"]
     return [
         {
@@ -32,7 +37,7 @@ def catalog(request: web.Request):
             "endpoints": [
                 {
                     **defaults,
-                    "url": f"{base}/{str(next(iter(ep.router.routes())).url_for()).split('/')[1]}",
+                    "url": f"{base}{str(next(iter(ep.router.routes())).url_for())}",
                 }
             ],
         }
@@ -57,12 +62,7 @@ def decode_token(key: str, token: str) -> Any:
     return json.loads(data)
 
 
-@routes.get("/")
-async def endpoints(request: web.Request):
-    return web.json_response({})
-
-
-@routes.post("/auth/tokens")
+@routes.post("/v3/auth/tokens")
 async def auth(request: web.Request):
     data = await request.json()
     auth_config = request.config_dict["auth_config"]
@@ -85,14 +85,23 @@ async def auth(request: web.Request):
     token_data = {
         "methods": ["password"],
         "user": {"name": username, "id": username},
-        "expires_at": (datetime.now() + timedelta(hours=1)).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(
+            "T", "seconds"
+        ),
         "catalog": catalog(request),
     }
     token = encode_token(auth_config["secret_key"], token_data)
     return web.json_response(
         {"token": token_data},
+        status=201,
         headers={"X-Subject-Token": token},
     )
+
+
+@routes.post("/v3/tokens")
+async def no_v2(request: web.Request) -> web.Response:
+    logging.error("Query to identity v2 should be considered obsolete.")
+    return web.Response(status=400)
 
 
 app.add_routes(routes)

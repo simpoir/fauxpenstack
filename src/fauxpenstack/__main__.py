@@ -11,7 +11,7 @@ from typing import Optional
 import click
 from aiohttp import web
 
-from . import brisk, glue, peek, pulsar
+from . import brisk, glue, neutrino, peek, plaster, pulsar
 from .middlewares import acl_middleware, idler, no_rel
 
 
@@ -51,10 +51,13 @@ def main(auth: Path, port: int, dir: Path, idle: Optional[int], verbose: int) ->
     app["last_request"] = [time.time()]  # make mutable ref
     if idle:
         app.on_startup.append(lambda a: on_startup(a, idle))
-    app.add_subapp("/v3", glue.app)
+    app.add_subapp("/identity", glue.app)
+    app.add_routes(glue.routes)
     app.add_subapp("/objects", brisk.app)
     app.add_subapp("/images", peek.app)
     app.add_subapp("/compute", pulsar.app)
+    app.add_subapp("/network", neutrino.app)
+    app.add_subapp("/storage/v3", plaster.app)
 
     # check if systemd is handing us a port and use that
     if fd_count := ctypes.cdll.LoadLibrary("libsystemd.so.0").sd_listen_fds(0):

@@ -4,7 +4,7 @@ import logging
 import os
 import random
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -13,14 +13,17 @@ from aiohttp import web
 
 from .metadata import mk_metadata
 from .peek import get_image_by_id
+from .util import make_endpoint
 
 routes = web.RouteTableDef()
 app = web.Application()
 app["ep_type"] = "compute"
 app["ep_name"] = __name__
+make_endpoint(routes, "2.1")
 
 KEYPAIRS = Path("keypairs")
 CONSOLES = Path("consoles")
+AZ_NAME = "nova"
 
 
 # No persistence. When fauxpenstack dies, so do the VMs.
@@ -40,17 +43,21 @@ class Instance:
         key_name=None,
         hostname=None,
         bridge=None,
+        tags=None,
+        metadata=None,
     ):
         self.id = id
         self.name = name
         self.hostname = hostname
-        self.created = datetime.utcnow().isoformat("T", "seconds")
+        self.created = datetime.now(timezone.utc).isoformat("T", "seconds")
         self.user_data = user_data
         self.key_name = key_name
+        self.tags = tags or []
         self._image = image
         self._flavor = flavor
         self._br_hwadd = self.gen_hwadd()
         self._br = bridge
+        self.metadata = metadata or {}
 
     async def setup(self):
         self._meta_shutdown, meta_port = await mk_metadata(self)
@@ -81,6 +88,9 @@ class Instance:
     def __del__(self):
         if self._sub:
             self._sub.kill()
+            # reap zombie
+            self._sub.communicate()
+            self._sub = None
         try:
             os.remove(CONSOLES / self.id)
         except OSError:
@@ -90,7 +100,7 @@ class Instance:
     def _spawn(self, arch, image_file, metadata_port, flavor, bridge=None):
         args = [
             f"qemu-system-{arch}",
-            # "-enable-kvm",
+            "-enable-kvm",
             "-snapshot",
             "-nographic",
             "-serial",
@@ -113,7 +123,9 @@ class Instance:
         if self._br:
             args.append("-nic")
             args.append(f"bridge,br={self._br},mac={self._br_hwadd}")
-        return subprocess.Popen(args, stdout=open("/dev/null", "w"))
+        return subprocess.Popen(
+            args, stdin=open("/dev/null"), stdout=open("/dev/null", "w")
+        )
 
     def info(self):
         data = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
@@ -126,29 +138,16 @@ class Instance:
             # Not quite true, but network info is assumed to be available
             # on active instances, and we rely on dhcp because we're too lazy
             # to really manage network... So it'll look like a fast boot ;)
-            data["status"] = "BUILDING"
+            data["status"] = "BUILD"
         return data
 
 
-@routes.get("/")
-async def versions(request: web.Request) -> web.Response:
-    return web.json_response(
-        {
-            "versions": [
-                {
-                    "id": "v2.1",
-                    "status": "CURRENT",
-                    "version": "2.1",
-                    "min_version": "2.1",
-                }
-            ]
-        }
-    )
-
-
 @routes.get("/servers")
+@routes.get("/servers/detail")
 async def list_(request: web.Request) -> web.Response:
-    return web.json_response({"servers": [{"id": id} for id in instances.keys()]})
+    return web.json_response(
+        {"servers": [instance.info() for instance in instances.values()]}
+    )
 
 
 @routes.delete("/servers/{server_id}")
@@ -189,11 +188,14 @@ async def create(request: web.Request) -> web.Response:
         data.get("key_name"),
         data.get("hostname"),
         bridge,
+        tags=data.get("tags"),
+        metadata=data.get("metadata"),
     )
     await instance.setup()
     return web.json_response(
         {"server": {"id": uuid, "links": []}},
         headers={"Location": f"{request.url}/{uuid}"},
+        status=202,
     )
 
 
@@ -208,6 +210,27 @@ async def get_server(request: web.Request) -> web.Response:
     return web.json_response(data)
 
 
+@routes.post("/servers/{server_id}/action")
+async def server_action(request: web.Request) -> web.Response:
+    server_id = request.match_info["server_id"]
+    for action in await request.json():
+        if action == "os-getConsoleOutput":
+            async with aiofiles.open(CONSOLES / server_id) as f:
+                return web.json_response({"output": await f.read()})
+
+    return web.json_response()
+
+
+@routes.get("/servers/{server_id}/os-security-groups")
+async def get_server_secgroups(request: web.Request) -> web.Response:
+    return web.json_response({"security-groups": []})
+
+
+@routes.get("/servers/{server_id}/os-interface")
+async def get_server_ports(request: web.Request) -> web.Response:
+    return web.json_response({"interfaceAttachments": []})
+
+
 @routes.post("/os-keypairs")
 async def import_keypair(request: web.Request) -> web.Response:
     data = await request.json()
@@ -218,7 +241,19 @@ async def import_keypair(request: web.Request) -> web.Response:
             await f.write(data["public_key"])
     except KeyError:
         return web.Response(status=400)
-    return web.json_response()
+    return web.json_response({"keypair": {"name": name}})
+
+
+@routes.get("/os-keypairs")
+async def list_keypair(request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "keypairs": [
+                {"keypair": {"name": name, "type": "ssh"}}
+                for name in await aiofiles.os.listdir(KEYPAIRS)
+            ]
+        }
+    )
 
 
 @routes.delete("/os-keypairs/{name}")
@@ -229,6 +264,33 @@ async def delete_keypair(request: web.Request) -> web.Response:
     except FileNotFoundError:
         return web.Response(status=404)
     return web.Response(status=204)
+
+
+@routes.get("/flavors/detail")
+async def get_flavors_details(request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "flavors": [
+                {"name": k, "id": k, **v}
+                for k, v in request.config_dict["auth_config"]["flavors"].items()
+            ]
+        }
+    )
+
+
+@routes.get("/os-availability-zone")
+async def list_az(request: web.Request) -> web.Response:
+    return web.json_response(
+        {
+            "availabilityZoneInfo": [
+                {
+                    "hosts": None,
+                    "zoneName": AZ_NAME,
+                    "zoneState": {"available": True},
+                }
+            ]
+        }
+    )
 
 
 app.add_routes(routes)

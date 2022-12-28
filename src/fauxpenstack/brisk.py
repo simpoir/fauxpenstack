@@ -50,7 +50,7 @@ async def list_buckets(request: web.Request) -> web.Response:
     end_marker = request.query.get("end_marker")
     listing = []
     for bucket in await aiofiles.os.listdir(BUCKETS):
-        if end_marker and bucket > end_marker or limit and len(listing) > limit:
+        if (end_marker and bucket > end_marker) or (limit and len(listing) > limit):
             break
         if marker and bucket <= marker:
             continue
@@ -68,7 +68,7 @@ async def list_bucket(request: web.Request) -> web.Response:
         path = BUCKETS / request.match_info["bucket"]
         trim = len(str(path)) + 1
         for parent, _dirs, files in os.walk(path):  # XXX not async
-            if end_marker and parent > end_marker or limit and len(listing) > limit:
+            if (end_marker and parent > end_marker) or (limit and len(listing) > limit):
                 break
             if marker and parent < marker:
                 continue

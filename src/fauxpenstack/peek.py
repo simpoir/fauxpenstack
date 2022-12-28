@@ -1,11 +1,13 @@
 """peek v. to glance quickly"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 from uuid import uuid4
 
 import aiofiles.os
 from aiohttp import web
+from .util import make_endpoint
 
 IMAGES = Path("images")
 CHUNK_SIZE = 10240
@@ -14,6 +16,7 @@ routes = web.RouteTableDef()
 app = web.Application()
 app["ep_type"] = "image"
 app["ep_name"] = __name__
+make_endpoint(routes, "2", "v2")
 
 
 async def get_image_by_id(image_id):
@@ -36,7 +39,7 @@ async def create_image(request: web.Request) -> web.Response:
     async with aiofiles.open(IMAGES / f"{uuid}:{name}.{arch}.{format}", "wb"):
         pass  # touch
 
-    ts = datetime.utcnow().isoformat("T", "seconds")
+    ts = datetime.now(timezone.utc).isoformat("T", "seconds")
     return web.json_response(
         {
             "status": "active",
@@ -86,9 +89,17 @@ async def list(request: web.Request) -> web.Response:
     limit = int(request.query.get("limit", 0))
     marker = request.query.get("marker")
     end_marker = request.query.get("end_marker")
+    return web.json_response(await _list(limit, marker, end_marker))
+
+
+async def _list(
+    limit: Optional[int] = None,
+    marker: Optional[str] = None,
+    end_marker: Optional[str] = None,
+):
     listing = []
     for image in await aiofiles.os.listdir(IMAGES):
-        if end_marker and image > end_marker or limit and len(listing) > limit:
+        if (end_marker and image > end_marker) or (limit and len(listing) > limit):
             break
         if marker and image <= marker:
             continue
@@ -121,9 +132,16 @@ async def list(request: web.Request) -> web.Response:
                 "schema": "/v2/schemas/image",
             }
         )
-    return web.json_response(
-        {"images": listing, "schema": "/v2/schemas/images", "first": "/v2/images"}
-    )
+    return {"images": listing, "schema": "/v2/schemas/images", "first": "/v2/images"}
+
+
+@routes.get("/v2/images/{uuid}")
+async def get_image(request: web.Request) -> web.Response:
+    uuid = request.match_info["uuid"]
+    listing = await _list(1, uuid)
+    if not listing["images"]:
+        return web.Response(status=404)
+    return web.json_response(listing["images"][0])
 
 
 @routes.delete("/v2/images/{image_id}")

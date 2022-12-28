@@ -29,3 +29,36 @@ The `auth.json` contains basic credentials and ACLs.
 "brisk" (swift) buckets are in `buckets` and are just folders.
 "peek" (glance) images are in `images` the same.
 "pulsar" (nova) VMs are just qemu processes, can be killed. SSH keys are in `keypairs`
+
+
+## Using with juju
+
+Using juju with custom clouds can be fiddly due to having to manage juju
+metadata. That being said, controllers and simple units (e.g. ubuntu) appear
+to work at least partially.
+For this, you'll need a bridge with dhcp, configured in auth.json and you'll
+need to tweak your novarc to point to the public interface running the service
+(because instances need to reach it from within).
+
+
+```
+wget <cloud_image_url> images/123:my_img_name.x86_64.qcow2
+source novarc.sample
+juju add-cloud faux
+# select openstack and fill questions.
+
+juju add-credential faux
+# more questions. Use keystone v3 and enter anything as a tenant/project
+
+# replace series/id to match the downloaded image.
+# Alternatively, you could configure a local image metadata stream, but this
+# is out-of-scope. See the upstream juju docs for that.
+juju bootstrap faux --bootstrap-image 123 --bootstrap-series focal --bootstrap-constraints arch=amd64
+juju deploy ubuntu  --series focal
+
+juju ssh ubuntu/0
+exit
+
+juju kill-controller faux-default --timeout 1s -y
+# This is as far as things have been tested, which is plenty for a mock service.
+```

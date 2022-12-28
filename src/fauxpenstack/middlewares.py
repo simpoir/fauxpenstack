@@ -30,7 +30,9 @@ def acl_middleware(auth_config) -> web.Response:
             roles = set(k for k, v in auth_config["roles"].items() if user in v)
         except KeyError:
             token = "NO_TOKEN"
-            roles = {"ANONYMOUS"}
+            roles = set()
+        roles.add("ANONYMOUS")
+
         for pattern, rule in auth_config["acls"].items():
             if re.match(pattern.replace("*", ".*"), request.path):
                 for role in roles:
