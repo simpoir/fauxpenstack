@@ -1,5 +1,6 @@
 """peek v. to glance quickly"""
 
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -7,10 +8,10 @@ from uuid import uuid4
 
 import aiofiles.os
 from aiohttp import web
+
 from .util import make_endpoint
 
 IMAGES = Path("images")
-CHUNK_SIZE = 10240
 
 routes = web.RouteTableDef()
 app = web.Application()
@@ -36,7 +37,8 @@ async def create_image(request: web.Request) -> web.Response:
             return web.Response(status=409)
     arch = payload.get("architecture") or "x86_64"
 
-    async with aiofiles.open(IMAGES / f"{uuid}:{name}.{arch}.{format}", "wb"):
+    path = IMAGES / f"{uuid}:{name}.{arch}.{format}"
+    async with aiofiles.open(path, "wb"):
         pass  # touch
 
     ts = datetime.now(timezone.utc).isoformat("T", "seconds")
@@ -75,12 +77,12 @@ async def upload(request: web.Request) -> web.Response:
             break
     else:
         return web.Response(status=404)
-    async with aiofiles.open(IMAGES / image, "wb") as f:
-        done = False
-        while not done:
-            chunk, done = await request.content.readchunk()
+    path = IMAGES / image
+    async with aiofiles.open(path, "wb") as f:
+        async for chunk in request.content.iter_any():
             await f.write(chunk)
-
+    proc = await asyncio.create_subprocess_exec("qemu-img", "resize", path, "10G")
+    await proc.wait()
     return web.Response(status=204)
 
 
@@ -103,9 +105,12 @@ async def _list(
             break
         if marker and image <= marker:
             continue
-        uuid, _, name = image.partition(":")
+        uuid, sep, name = image.partition(":")
+        if not sep:
+            continue
         name, _, format = name.rpartition(".")
         name, _, arch = name.rpartition(".")
+        stat = await aiofiles.os.stat(IMAGES / image)
         listing.append(
             {
                 "status": "active",
@@ -128,7 +133,7 @@ async def _list(
                 "os_hidden": False,
                 "created_at": "FIXME",
                 "updated_at": "FIXME",
-                "size": "FIXME",
+                "size": stat.st_size,
                 "schema": "/v2/schemas/image",
             }
         )

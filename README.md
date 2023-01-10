@@ -10,9 +10,9 @@ The name is a pun of french "faux" (fake) and opentack.
 
 Requires python3.10+ and poetry.
 
-First thing first, edit `auth.json` with a new secret and change the user/pass.
-of foouser. You might also want to change the `net_bridges` to match any bridge
-you have, if you care about network.
+First thing first, copy `conf.toml.example` to `conf.toml` with a new secret
+and change the user/pass of foouser. You might also want to change the
+`net_bridges` to match any bridge you have, if you care about network.
 
 If you want to actually run VMs, you also need qemu
 If you want your VMs to be reachable they also need some extra setup.
@@ -24,8 +24,8 @@ It'll create a socket activation user service running from the source folder,
 so it doesn't keep running when you don't need it.
 Can be removed with `make uninstall`
 
-The `auth.json` contains basic credentials and ACLs.
-"glue" (keystone) is just a user mapping in `auth.json``
+The `conf.toml` contains basic credentials and ACLs.
+"glue" (keystone) is just a user mapping in `conf.toml``
 "brisk" (swift) buckets are in `buckets` and are just folders.
 "peek" (glance) images are in `images` the same.
 "pulsar" (nova) VMs are just qemu processes, can be killed. SSH keys are in `keypairs`
@@ -36,7 +36,7 @@ The `auth.json` contains basic credentials and ACLs.
 Using juju with custom clouds can be fiddly due to having to manage juju
 metadata. That being said, controllers and simple units (e.g. ubuntu) appear
 to work at least partially.
-For this, you'll need a bridge with dhcp, configured in auth.json and you'll
+For this, you'll need a bridge with dhcp, configured in conf.toml and you'll
 need to tweak your novarc to point to the public interface running the service
 (because instances need to reach it from within).
 

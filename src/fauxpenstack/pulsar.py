@@ -48,7 +48,7 @@ class Instance:
     ):
         self.id = id
         self.name = name
-        self.hostname = hostname
+        self.hostname = hostname or name
         self.created = datetime.now(timezone.utc).isoformat("T", "seconds")
         self.user_data = user_data
         self.key_name = key_name
@@ -62,12 +62,14 @@ class Instance:
     async def setup(self):
         self._meta_shutdown, meta_port = await mk_metadata(self)
         arch = self._image.name.split(".")[-2]
-        self._sub = self._spawn(arch, self._image, meta_port, self._flavor)
+        await self._spawn(arch, self._image, meta_port, self._flavor)
 
     @staticmethod
     def gen_hwadd() -> str:
         while True:
-            candidate = "52:54:00:" + ":".join([f"{b:x}" for b in random.randbytes(3)])
+            candidate = "52:54:00:" + ":".join(
+                [f"{b:02x}" for b in random.randbytes(3)]
+            )
             for existing in instances.values():
                 if existing._br_hwadd == candidate:
                     break
@@ -86,44 +88,67 @@ class Instance:
         return None
 
     def __del__(self):
-        if self._sub:
-            self._sub.kill()
-            # reap zombie
-            self._sub.communicate()
-            self._sub = None
         try:
             os.remove(CONSOLES / self.id)
         except OSError:
             pass
+
+        if self._sub:
+            try:
+                self._sub.kill()
+                # reap zombies
+                self._sub.communicate()
+                self._sub = None
+            except Exception:
+                pass
         self._meta_shutdown()
 
-    def _spawn(self, arch, image_file, metadata_port, flavor, bridge=None):
+    async def _spawn(self, arch, image_file, metadata_port, flavor, bridge=None):
+        nic_model = "virtio-net-pci"
+        if arch == "s390x":
+            nic_model = "virtio"
+
         args = [
             f"qemu-system-{arch}",
-            "-enable-kvm",
             "-snapshot",
             "-nographic",
+            "-uuid",
+            self.id,
             "-serial",
             f"file:{CONSOLES / self.id}",
             "-drive",
             f"file={image_file},if=virtio",
             "-m",
             f"{flavor['ram']}M",
-            "-smbios",
-            "type=1,product=OpenStack Compute",  # pants on fire
             # metadata-only network
             "-nic",
-            f"user,net=169.254.169.0/24,restrict=on,"
+            f"user,hostname={self.hostname},model={nic_model},net=169.254.169.0/24,restrict=on,"
             f"guestfwd=tcp:169.254.169.254:80-cmd:nc 127.0.0.1 {metadata_port}",
         ]
-        logging.debug("spawning %r", args)
+
+        match arch:
+            case "x86_64":
+                args.append("-enable-kvm")
+                args.extend(
+                    # pants on fire
+                    ["-smbios", "type=1,product=OpenStack Compute"]
+                )
+            case "aarch64":
+                # impdef is "less secure" but way faster
+                args.extend(["-machine", "virt", "-cpu", "max,pauth-impdef=on"])
+                args.extend(["-bios", "/usr/share/qemu-efi-aarch64/QEMU_EFI.fd"])
+
         if (ncpus := flavor["vcpus"]) > 1:
             args.append("-smp")
             args.append(str(ncpus))
+
         if self._br:
             args.append("-nic")
-            args.append(f"bridge,br={self._br},mac={self._br_hwadd}")
-        return subprocess.Popen(
+            args.append(f"bridge,model={nic_model},br={self._br},mac={self._br_hwadd}")
+        logging.debug("spawning %r", args)
+
+        # del and async don't play together.
+        self._sub = subprocess.Popen(
             args, stdin=open("/dev/null"), stdout=open("/dev/null", "w")
         )
 
@@ -139,6 +164,9 @@ class Instance:
             # on active instances, and we rely on dhcp because we're too lazy
             # to really manage network... So it'll look like a fast boot ;)
             data["status"] = "BUILD"
+
+        if self._sub.returncode is not None:
+            data["status"] = "ERROR"
         return data
 
 
@@ -162,7 +190,7 @@ async def delete(request: web.Request) -> web.Response:
 
 @routes.post("/servers")
 async def create(request: web.Request) -> web.Response:
-    config = request.config_dict["auth_config"]
+    config = request.config_dict["app_config"]
     uuid = str(uuid4())
     data = await request.json()
     try:
@@ -266,13 +294,14 @@ async def delete_keypair(request: web.Request) -> web.Response:
     return web.Response(status=204)
 
 
+@routes.get("/flavors")
 @routes.get("/flavors/detail")
 async def get_flavors_details(request: web.Request) -> web.Response:
     return web.json_response(
         {
             "flavors": [
                 {"name": k, "id": k, **v}
-                for k, v in request.config_dict["auth_config"]["flavors"].items()
+                for k, v in request.config_dict["app_config"]["flavors"].items()
             ]
         }
     )

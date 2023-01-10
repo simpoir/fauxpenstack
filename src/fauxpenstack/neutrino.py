@@ -13,11 +13,12 @@ util.make_endpoint(routes, "2.0", "v2.0")
 
 @routes.get("/v2.0/networks")
 async def listing(request: web.Request) -> web.Response:
-    nets = request.config_dict["auth_config"]["net_bridges"]
+    nets = request.config_dict["app_config"]["net_bridges"]
     return web.json_response(
         {
             "networks": [
-                {"name": name, "id": name, "status": "ACTIVE"} for name in nets.keys()
+                {"name": name, "id": name, "label": name, "status": "ACTIVE"}
+                for name in nets.keys()
             ]
         }
     )
@@ -27,7 +28,6 @@ async def listing(request: web.Request) -> web.Response:
 async def get_network(request: web.Request) -> web.Response:
     network_id = request.match_info["network_id"]
     try:
-        net = request.config_dict["auth_config"]["net_bridges"][network_id]
         return web.json_response(
             {
                 "network": {

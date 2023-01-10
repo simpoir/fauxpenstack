@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-export OS_AUTH_URL=http://localhost:8855/identity/v3
+export OS_AUTH_URL=http://localhost:8855/identity/
 # tenant need to be present with some libs to keystoneV3 to be used
 export OS_TENANT_ID=unused
 export OS_TENANT_NAME="unused"
@@ -10,4 +10,4 @@ export OS_PASSWORD="changeme"
 export OS_REGION_NAME="default"
 export OS_ENDPOINT_TYPE=publicURL
 export OS_IDENTITY_API_VERSION=3
-export OS_IMAGE_API_VERSION=3
+export OS_IMAGE_API_VERSION=2

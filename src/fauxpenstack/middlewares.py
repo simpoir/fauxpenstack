@@ -13,7 +13,7 @@ def idler(request, handler) -> web.Response:
     return handler(request)
 
 
-def acl_middleware(auth_config) -> web.Response:
+def acl_middleware(app_config) -> web.Response:
     """basic authorization scheme"""
 
     @web.middleware
@@ -21,19 +21,19 @@ def acl_middleware(auth_config) -> web.Response:
         perm = request.method.lower()
         try:
             token = request.headers["X-Auth-Token"]
-            key = request.config_dict["auth_config"]["secret_key"]
+            key = request.config_dict["app_config"]["secret_key"]
             try:
                 user = glue.decode_token(key, token)["user"]["name"]
             except glue.InvalidTokenError:
                 logging.error("token validation error")
                 return web.Response(status=401)
-            roles = set(k for k, v in auth_config["roles"].items() if user in v)
+            roles = set(k for k, v in app_config["roles"].items() if user in v)
         except KeyError:
             token = "NO_TOKEN"
             roles = set()
         roles.add("ANONYMOUS")
 
-        for pattern, rule in auth_config["acls"].items():
+        for pattern, rule in app_config["acls"].items():
             if re.match(pattern.replace("*", ".*"), request.path):
                 for role in roles:
                     try:

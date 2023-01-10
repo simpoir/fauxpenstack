@@ -1,0 +1,52 @@
+# you probably want to change this
+secret_key = "changeme"
+
+[net_bridges]
+Ext-Net = "lxdbr0"
+
+[users]
+# you probably also want to change this
+foouser = {"password" = "changeme"}
+
+[roles]
+users = [ "foouser" ]
+
+[flavors.1]
+vcpus = 1
+ram = 1000
+swap = 0
+disk = 0
+
+[flavors.3]
+vcpus = 1
+ram = 4000
+swap = 0
+disk = 0
+
+[flavors.s1-4]
+vcpus = 1
+ram = 1024
+swap = 0
+disk = 0
+
+[acls."/*"]
+# Make everything conveniently insecure
+ANONYMOUS = [ "get", "put", "post", "delete" ]
+
+[acls."/identity/v3/auth/tokens"]
+ANONYMOUS = [ "get", "post" ]
+
+[acls."/objects*"]
+users = [ "put", "get", "head", "delete" ]
+
+[acls."/images*"]
+users = [ "put", "post", "get", "delete" ]
+
+[acls."/compute*"]
+users = [ "put", "post", "get", "delete" ]
+
+[acls."/storage*"]
+users = [ "put", "post", "get", "delete" ]
+
+[acls."/network*"]
+users = [ "get", "post" ]

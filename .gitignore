@@ -1,4 +1,5 @@
 .venv
+conf.toml
 buckets
 images
 keypairs

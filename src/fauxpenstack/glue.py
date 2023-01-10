@@ -65,13 +65,13 @@ def decode_token(key: str, token: str) -> Any:
 @routes.post("/v3/auth/tokens")
 async def auth(request: web.Request):
     data = await request.json()
-    auth_config = request.config_dict["auth_config"]
+    app_config = request.config_dict["app_config"]
     try:
         user = data["auth"]["identity"]["password"]["user"]
         username = user.get("name") or user["id"]
         password = user["password"]
         try:
-            if auth_config["users"][username]["password"] != password:
+            if app_config["users"][username]["password"] != password:
                 logging.error("invalid credentials")
                 return web.Response(status=401)
         except KeyError:
@@ -90,7 +90,7 @@ async def auth(request: web.Request):
         ),
         "catalog": catalog(request),
     }
-    token = encode_token(auth_config["secret_key"], token_data)
+    token = encode_token(app_config["secret_key"], token_data)
     return web.json_response(
         {"token": token_data},
         status=201,

@@ -2,7 +2,6 @@
 
 from uuid import uuid4
 
-import aiofiles
 from aiohttp import web
 
 from .util import make_endpoint

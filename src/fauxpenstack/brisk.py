@@ -115,11 +115,7 @@ async def upload(request: web.Request):
     await aiofiles.os.makedirs(dst.parent, exist_ok=True)
     async with aiofiles.open(dst, "wb") as f:
         body = request.content
-        recvd = 0
-        over = False
-        while not over and recvd < request.content_length:
-            chunk, over = await body.readchunk()
-            recvd += len(chunk)
+        async for chunk in body.iter_any():
             await f.write(chunk)
     return web.Response()
 

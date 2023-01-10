@@ -1,12 +1,12 @@
 import asyncio
 import ctypes
-import json
 import logging
 import os
 import socket
 import time
 from pathlib import Path
 from typing import Optional
+import toml
 
 import click
 from aiohttp import web
@@ -28,26 +28,25 @@ async def on_startup(app: web.Application, timeout: int):
 
 
 @click.option("--port", type=int, default=8855)
-@click.option("--auth", type=Path, default="auth.json")
+@click.option("--conf", type=Path, default="conf.toml")
 @click.option("--dir", type=Path, help="work dir")
 @click.option("--idle", type=int, help="stop after idle time")
 @click.option("-v", "--verbose", help="verbose", count=True)
 @click.command()
-def main(auth: Path, port: int, dir: Path, idle: Optional[int], verbose: int) -> None:
+def main(conf: Path, port: int, dir: Path, idle: Optional[int], verbose: int) -> None:
     logging.basicConfig(level=20 - verbose * 10)
 
     if dir:
         os.chdir(dir)
 
     try:
-        with open(auth) as auth:
-            auth_config = json.load(auth)
+        app_config = toml.load(conf)
     except OSError:
-        logging.exception("Could not read auth data store.")
+        logging.exception("Could not read config data store.")
 
-    app = web.Application(middlewares=[idler, no_rel, acl_middleware(auth_config)])
+    app = web.Application(middlewares=[idler, no_rel, acl_middleware(app_config)])
     app["root_app"] = app
-    app["auth_config"] = auth_config
+    app["app_config"] = app_config
     app["last_request"] = [time.time()]  # make mutable ref
     if idle:
         app.on_startup.append(lambda a: on_startup(a, idle))
