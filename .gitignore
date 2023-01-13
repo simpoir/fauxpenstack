@@ -1,5 +1,6 @@
 .venv
 conf.toml
+novarc
 buckets
 images
 keypairs
