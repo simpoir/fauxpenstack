@@ -18,6 +18,7 @@ If you want to actually run VMs, you also need qemu
 If you want your VMs to be reachable they also need some extra setup.
 Running `make ubuntu-deps` fulfills both of those needs.
 
+If you want to run the service once, `poetry run fauxpenstack -v`
 
 Easiest way to set is to just run `make install` as a user.
 It'll create a socket activation user service running from the source folder,
@@ -28,7 +29,8 @@ The `conf.toml` contains basic credentials and ACLs.
 "glue" (keystone) is just a user mapping in `conf.toml``
 "brisk" (swift) buckets are in `buckets` and are just folders.
 "peek" (glance) images are in `images` the same.
-"pulsar" (nova) VMs are just qemu processes, can be killed. SSH keys are in `keypairs`
+"pulsar" (nova) VMs are just qemu processes, can be killed.
+SSH keys are in `keypairs`. There are no persistent volumes.
 
 
 ## Using with juju

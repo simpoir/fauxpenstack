@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Stone is like keystone"""
+"""glue holds things together, kinda like a keystone does."""
 import base64
 import hashlib
 import hmac
