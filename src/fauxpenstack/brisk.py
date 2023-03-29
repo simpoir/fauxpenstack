@@ -64,6 +64,8 @@ async def list_buckets(request: web.Request) -> web.Response:
     prefix = request.query.get("prefix")
     listing = []
     for bucket in await aiofiles.os.listdir(BUCKETS):
+        if not os.path.isdir(BUCKETS / bucket):
+            continue
         if (end_marker and bucket > end_marker) or (limit and len(listing) > limit):
             break
         if marker and bucket <= marker:
@@ -121,7 +123,7 @@ async def head(request: web.Request) -> web.Response:
 
 @routes.put("/{bucket}")
 async def create_bucket(request: web.Request) -> web.Response:
-    bucket_name =  request.match_info["bucket"]
+    bucket_name = request.match_info["bucket"]
     if "/" in bucket_name:
         return web.Response(status=400)
     path = BUCKETS / bucket_name
