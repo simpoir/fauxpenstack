@@ -61,11 +61,14 @@ async def list_buckets(request: web.Request) -> web.Response:
     limit = int(request.query.get("limit", 0))
     marker = request.query.get("marker")
     end_marker = request.query.get("end_marker")
+    prefix = request.query.get("prefix")
     listing = []
     for bucket in await aiofiles.os.listdir(BUCKETS):
         if (end_marker and bucket > end_marker) or (limit and len(listing) > limit):
             break
         if marker and bucket <= marker:
+            continue
+        if prefix and not bucket.startswith(prefix):
             continue
         listing.append({"count": 0, "bytes": 0, "name": bucket})
     return web.json_response(listing)
@@ -76,6 +79,7 @@ async def list_bucket(request: web.Request) -> web.Response:
     limit = int(request.query.get("limit", 0))
     marker = request.query.get("marker")
     end_marker = request.query.get("end_marker")
+    prefix = request.query.get("prefix")
     try:
         listing = []
         path = BUCKETS / request.match_info["bucket"]
@@ -86,11 +90,15 @@ async def list_bucket(request: web.Request) -> web.Response:
             if marker and parent < marker:
                 continue
             for f in files:
+                obj_name = f"{parent[trim:]}/{f}"
+                if prefix and not obj_name.startswith(prefix):
+                    continue
+
                 listing.append(
                     {
                         "hash": "FIXME",
                         "bytes": "FIXME",
-                        "name": f"{parent[trim:]}/{f}",
+                        "name": obj_name,
                         "content_type": "application/octet-stream",
                     }
                 )
@@ -113,7 +121,10 @@ async def head(request: web.Request) -> web.Response:
 
 @routes.put("/{bucket}")
 async def create_bucket(request: web.Request) -> web.Response:
-    path = BUCKETS / request.match_info["bucket"]
+    bucket_name =  request.match_info["bucket"]
+    if "/" in bucket_name:
+        return web.Response(status=400)
+    path = BUCKETS / bucket_name
     try:
         await aiofiles.os.mkdir(path)
     except FileExistsError:

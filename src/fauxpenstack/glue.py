@@ -13,6 +13,7 @@
 # limitations under the License.
 """glue holds things together, kinda like a keystone does."""
 import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -68,7 +69,10 @@ def encode_token(key: str, token: bytes) -> str:
 
 def decode_token(key: str, token: str) -> Any:
     key = key.encode("utf-8")
-    data, h = base64.b64decode(token.encode("ascii")).split(b"~~~")
+    try:
+        data, h = base64.b64decode(token.encode("ascii")).split(b"~~~")
+    except binascii.Error:
+        raise InvalidTokenError
     h2 = hmac.new(key, data, hashlib.sha256).hexdigest().encode("ascii")
     if h2 != h:
         raise InvalidTokenError
