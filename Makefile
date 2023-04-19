@@ -28,7 +28,7 @@ ubuntu-deps:
 	@read X; if [ "$$X" = "YES" ]; then \
 		sudo chmod +s /usr/lib/qemu/qemu-bridge-helper; \
 		test -f /etc/qemu/bridge.conf || sudo mkdir -p /etc/qemu; \
-		for brname in $$(awk 'BEGIN {br=0} /\\[/ {br=0} match($$0, /= *"([^"]+)"/, a) {if (br) {print a[1]}} /\\[net_bridges/ {br=1}' conf.toml | sort -u); do \
+		for brname in $$(awk 'BEGIN {br=0} /[[]/ {br=0} match($$0, /= *"([^"]+)"/, a) {if (br) {print a[1]}} /[[]net_bridges/ {br=1}' conf.toml | sort -u); do \
 		  grep $$brname /etc/qemu/bridge.conf || echo "allow $$brname" | sudo tee -a /etc/qemu/bridge.conf ; \
 		done; \
 	fi
