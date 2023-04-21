@@ -33,6 +33,10 @@ disk = 0
 # Make everything conveniently insecure
 ANONYMOUS = [ "get", "put", "post", "delete" ]
 
+[acls."/"]
+# Endpoint index
+ANONYMOUS = [ "get ]
+
 [acls."/identity/v3/auth/tokens"]
 ANONYMOUS = [ "get", "post" ]
 
