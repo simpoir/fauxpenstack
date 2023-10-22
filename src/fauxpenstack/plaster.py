@@ -13,17 +13,42 @@
 # limitations under the License.
 """plaster n. building material used for decoration and coating"""
 
+import asyncio
+from pathlib import Path
 from uuid import uuid4
 
 from aiohttp import web
 
 from .util import make_endpoint
 
+VOLUMES = Path("volumes")
+
 routes = web.RouteTableDef()
 app = web.Application()
 app["ep_type"] = "volumev3"
 app["ep_name"] = __name__
 make_endpoint(routes, "3.0")
+
+
+async def make_volume_from_image(instance_id, image_path, size) -> Path:
+    volume = VOLUMES / str(uuid4())
+    back_format = str(image_path).rpartition(".")[2]
+    proc = await asyncio.create_subprocess_exec(
+        "qemu-img",
+        "create",
+        "-f",
+        "qcow2",
+        "-b",
+        image_path.absolute(),
+        "-F",
+        back_format,
+        volume.absolute(),
+        f"{size}M",
+    )
+    await proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr)
+    return volume
 
 
 @routes.get("/volumes/detail")

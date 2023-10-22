@@ -15,7 +15,7 @@
 import asyncio
 import base64
 import logging
-from typing import Callable
+from typing import Callable, Tuple
 
 import aiofiles
 from aiohttp import web
@@ -70,7 +70,7 @@ async def network_data(request: web.Request) -> web.Response:
     )
 
 
-async def mk_metadata(instance) -> (Callable, int):
+async def mk_metadata(instance) -> Tuple[Callable, int]:
     """spawn a metadata service. returns a closer and a port."""
 
     meta_data = {

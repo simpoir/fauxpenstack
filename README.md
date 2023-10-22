@@ -30,7 +30,7 @@ The `conf.toml` contains basic credentials and ACLs.
 "brisk" (swift) buckets are in `buckets` and are just folders.
 "peek" (glance) images are in `images` the same.
 "pulsar" (nova) VMs are just qemu processes, can be killed.
-SSH keys are in `keypairs`. There are no persistent volumes.
+SSH keys are in `keypairs`. There is no volume management.
 
 
 ## Using with juju

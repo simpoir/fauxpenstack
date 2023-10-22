@@ -59,21 +59,21 @@ def catalog(request: web.Request):
     ]
 
 
-def encode_token(key: str, token: bytes) -> str:
+def encode_token(key: str, token: Any) -> str:
     """Make a cheat and fat token."""
-    key = key.encode("utf-8")
-    data = json.dumps(token).encode("utf-8")
-    h = hmac.new(key, data, hashlib.sha256).hexdigest().encode("ascii")
+    b_key: bytes = key.encode("utf-8")
+    data: bytes = json.dumps(token).encode("utf-8")
+    h = hmac.new(b_key, data, hashlib.sha256).hexdigest().encode("ascii")
     return base64.b64encode(data + b"~~~" + h).decode("ascii")
 
 
 def decode_token(key: str, token: str) -> Any:
-    key = key.encode("utf-8")
+    b_key: bytes = key.encode("utf-8")
     try:
         data, h = base64.b64decode(token.encode("ascii")).split(b"~~~")
     except binascii.Error:
         raise InvalidTokenError
-    h2 = hmac.new(key, data, hashlib.sha256).hexdigest().encode("ascii")
+    h2 = hmac.new(b_key, data, hashlib.sha256).hexdigest().encode("ascii")
     if h2 != h:
         raise InvalidTokenError
     return json.loads(data)

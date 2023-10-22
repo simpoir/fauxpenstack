@@ -22,7 +22,7 @@ uninstall:
 ubuntu-deps:
 	sudo apt-get -y install qemu-system-x86 qemu-system-arm qemu-system-ppc qemu-system-s390x
 	@echo "If you intend to spin VMs and to use a virtual network, I can update " \
-		"setup qemu-bridge-helper to allow users to attach to the configured bridges. " \
+		"qemu-bridge-helper to allow users to attach to the configured bridges. " \
 		"This is unnecessary if fauxpenstack runs as root."
 	@echo "Should I do that? (type YES in all caps or no)"
 	@read X; if [ "$$X" = "YES" ]; then \

@@ -13,7 +13,6 @@
 # limitations under the License.
 """peek v. to glance quickly"""
 
-import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -92,10 +91,9 @@ async def upload(request: web.Request) -> web.Response:
         return web.Response(status=404)
     path = IMAGES / image
     async with aiofiles.open(path, "wb") as f:
-        async for chunk in request.content.iter_any():
+        body = request.content
+        async for chunk in body.iter_any():
             await f.write(chunk)
-    proc = await asyncio.create_subprocess_exec("qemu-img", "resize", path, "10G")
-    await proc.wait()
     return web.Response(status=204)
 
 

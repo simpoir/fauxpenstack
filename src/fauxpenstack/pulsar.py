@@ -19,6 +19,7 @@ import random
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 from uuid import uuid4
 
 import aiofiles
@@ -26,6 +27,7 @@ from aiohttp import web
 
 from .metadata import mk_metadata
 from .peek import get_image_by_id
+from .plaster import make_volume_from_image
 from .util import make_endpoint
 
 routes = web.RouteTableDef()
@@ -48,10 +50,11 @@ class Instance:
 
     def __init__(
         self,
-        id,
-        name,
-        image,
+        id: str,
+        name: str,
+        image: Path,
         flavor,
+        volume: Optional[Path] = None,
         user_data=None,
         key_name=None,
         hostname=None,
@@ -67,6 +70,7 @@ class Instance:
         self.key_name = key_name
         self.tags = tags or []
         self._image = image
+        self._volume = volume or image
         self._flavor = flavor
         self._br_hwadd = self.gen_hwadd()
         self._br = bridge
@@ -75,7 +79,7 @@ class Instance:
     async def setup(self):
         self._meta_shutdown, meta_port = await mk_metadata(self)
         arch = self._image.name.split(".")[-2]
-        await self._spawn(arch, self._image, meta_port, self._flavor)
+        await self._spawn(arch, self._volume, meta_port, self._flavor)
 
     @staticmethod
     def gen_hwadd() -> str:
@@ -114,23 +118,30 @@ class Instance:
                 self._sub = None
             except Exception:
                 pass
+        self._volume_cleanup()
         self._meta_shutdown()
 
-    async def _spawn(self, arch, image_file, metadata_port, flavor, bridge=None):
+    def _volume_cleanup(self):
+        # Only cleanup if the volume is not an image
+        # TODO: leak volumes instead of cleaning implicitly?
+        if self._image != self._volume:
+            logging.debug("dropping instance volumes")
+            self._volume.unlink()
+
+    async def _spawn(self, arch, volume_file, metadata_port, flavor, bridge=None):
         nic_model = "virtio-net-pci"
         if arch == "s390x":
             nic_model = "virtio"
 
         args = [
             f"qemu-system-{arch}",
-            "-snapshot",
             "-nographic",
             "-uuid",
             self.id,
             "-serial",
             f"file:{CONSOLES / self.id}",
             "-drive",
-            f"file={image_file},if=virtio",
+            f"file={volume_file},if=virtio",
             "-m",
             f"{flavor['ram']}M",
             # metadata-only network
@@ -178,7 +189,7 @@ class Instance:
             # to really manage network... So it'll look like a fast boot ;)
             data["status"] = "BUILD"
 
-        if self._sub.returncode is not None:
+        if self._sub and self._sub.returncode is not None:
             data["status"] = "ERROR"
         return data
 
@@ -219,12 +230,14 @@ async def create(request: web.Request) -> web.Response:
         bridge = config["net_bridges"][data["networks"][0]["uuid"]]
     except KeyError:
         bridge = None
+    volume = await make_volume_from_image(uuid, image, flavor["disk"])
 
     instance = instances[uuid] = Instance(
         uuid,
         data["name"],
         image,
         flavor,
+        volume,
         data.get("user_data"),
         data.get("key_name"),
         data.get("hostname"),

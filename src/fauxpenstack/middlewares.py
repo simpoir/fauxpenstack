@@ -14,6 +14,7 @@
 import logging
 import re
 import time
+from typing import Callable
 
 from aiohttp import web
 
@@ -26,11 +27,11 @@ def idler(request, handler) -> web.Response:
     return handler(request)
 
 
-def acl_middleware(app_config) -> web.Response:
+def acl_middleware(app_config) -> Callable:
     """basic authorization scheme"""
 
     @web.middleware
-    async def _wrapper(request: web.Request, handler: web.RequestHandler):
+    async def _wrapper(request: web.Request, handler: Callable) -> web.Response:
         perm = request.method.lower()
         try:
             token = request.headers["X-Auth-Token"]
@@ -55,7 +56,7 @@ def acl_middleware(app_config) -> web.Response:
                     except KeyError:
                         continue
         else:
-            logging.debug(
+            logging.warning(
                 "rejected access with perm %r , path %r and roles %r",
                 perm,
                 request.path,

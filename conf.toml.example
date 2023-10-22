@@ -35,7 +35,11 @@ ANONYMOUS = [ "get", "put", "post", "delete" ]
 
 [acls."/"]
 # Endpoint index
-ANONYMOUS = [ "get ]
+ANONYMOUS = [ "get" ]
+
+[acls."/identity/"]
+# Endpoint index
+ANONYMOUS = [ "get" ]
 
 [acls."/identity/v3/auth/tokens"]
 ANONYMOUS = [ "get", "post" ]
