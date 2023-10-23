@@ -15,27 +15,23 @@ users = [ "foouser" ]
 vcpus = 1
 ram = 1000
 swap = 0
-disk = 0
+disk = 10000
 
 [flavors.3]
 vcpus = 1
 ram = 4000
 swap = 0
-disk = 0
+disk = 10000
 
 [flavors.s1-4]
 vcpus = 1
 ram = 1024
 swap = 0
-disk = 0
+disk = 10000
 
 [acls."/*"]
 # Make everything conveniently insecure
 ANONYMOUS = [ "get", "put", "post", "delete" ]
-
-[acls."/"]
-# Endpoint index
-ANONYMOUS = [ "get" ]
 
 [acls."/identity/"]
 # Endpoint index
